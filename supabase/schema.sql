@@ -52,6 +52,7 @@ create table if not exists recurring_rules (
   to_account_id uuid references accounts(id) on delete cascade,
   category_id uuid references categories(id) on delete set null,
   child_id uuid references children(id) on delete set null,
+  tax_deductible boolean not null default false,
   frequency text not null default 'monthly' check (frequency in ('weekly','monthly','yearly')),
   day_of_month int check (day_of_month between 1 and 31),
   start_date date not null default current_date,

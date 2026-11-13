@@ -5,12 +5,14 @@ import { Card, PageTitle } from "@/components/ui";
 import { createClient } from "@/lib/supabase/server";
 
 const MENU = [
+  { href: "/more/budget", label: "예산 설정", desc: "한 달 전체 · 카테고리별 예산" },
+  { href: "/more/recurring", label: "고정지출", desc: "월세 · 통신비 · 구독 · 월급 자동 기록" },
   { href: "/more/categories", label: "카테고리 관리", desc: "분류 추가 · 이름 변경 · 숨기기" },
   { href: "/more/children", label: "아이 관리", desc: "교육비를 아이별로 나눠 볼 때 사용" },
   { href: "/assets", label: "계좌 관리", desc: "통장 · 카드 · 현금 · 증권 · 대출" },
 ];
 
-const SOON = ["예산 설정", "고정지출 자동 등록", "카드/은행 내역 가져오기", "교육비 · 연말정산", "투자 종목 관리"];
+const SOON = ["카드/은행 내역 가져오기 (엑셀 · 캡처)", "교육비 · 연말정산", "대출 · 투자 종목 관리"];
 
 export default async function MorePage() {
   const supabase = await createClient();

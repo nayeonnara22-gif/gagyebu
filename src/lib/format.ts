@@ -60,6 +60,37 @@ export function dayLabel(date: string) {
   return `${d}일 (${dow})`;
 }
 
+// ---------- 고정지출 날짜 계산 (DB 함수 recurring_first_date 와 같은 규칙) ----------
+function ymd(y: number, m0: number, d: number) {
+  const dt = new Date(Date.UTC(y, m0, d));
+  return dt.toISOString().slice(0, 10);
+}
+function lastDay(y: number, m0: number) {
+  return new Date(Date.UTC(y, m0 + 1, 0)).getUTCDate();
+}
+
+/** 시작일 이후 처음 돌아오는 실행일 */
+export function firstRunDate(start: string, freq: "weekly" | "monthly" | "yearly", dom: number | null) {
+  if (freq === "weekly" || !dom) return start;
+  const [y, m, d] = start.split("-").map(Number);
+  const cand = Math.min(dom, lastDay(y, m - 1));
+  if (cand >= d) return ymd(y, m - 1, cand);
+  const step = freq === "yearly" ? 12 : 1;
+  const ny = y + Math.floor((m - 1 + step) / 12);
+  const nm0 = (m - 1 + step) % 12;
+  return ymd(ny, nm0, Math.min(dom, lastDay(ny, nm0)));
+}
+
+/** 두 날짜 사이 일수 (b - a) */
+export function daysBetween(a: string, b: string) {
+  return Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000);
+}
+
+export function shortDate(date: string) {
+  const [, m, d] = date.split("-").map(Number);
+  return `${m}월 ${d}일`;
+}
+
 export function daysLeftInMonth(m: string) {
   const today = todayKST();
   if (today.slice(0, 7) !== m) return null;

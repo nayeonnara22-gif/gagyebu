@@ -40,6 +40,29 @@ export type Category = {
 
 export type Child = { id: string; name: string; birth_year: number | null };
 
+export type Frequency = "weekly" | "monthly" | "yearly";
+export const FREQ_LABEL: Record<Frequency, string> = { monthly: "매월", yearly: "매년", weekly: "매주" };
+
+export type RecurringRule = {
+  id: string;
+  name: string;
+  kind: TxKind;
+  amount: number;
+  account_id: string;
+  to_account_id: string | null;
+  category_id: string | null;
+  child_id: string | null;
+  tax_deductible: boolean;
+  frequency: Frequency;
+  day_of_month: number | null;
+  start_date: string;
+  end_date: string | null;
+  next_run_on: string;
+  is_active: boolean;
+};
+
+export type Budget = { id: string; month: string; category_id: string | null; amount: number };
+
 export type Transaction = {
   id: string;
   occurred_on: string;
@@ -52,4 +75,5 @@ export type Transaction = {
   memo: string | null;
   child_id: string | null;
   tax_deductible: boolean;
+  recurring_rule_id?: string | null;
 };

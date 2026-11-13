@@ -26,7 +26,7 @@ export default function TxRow({ t }: { t: TxView }) {
   const meta =
     t.kind === "transfer"
       ? `이체 · ${t.accountName} → ${t.toAccountName ?? ""}`
-      : [t.catFull ?? "미분류", t.childName, t.accountName].filter(Boolean).join(" · ");
+      : [t.catFull ?? "미분류", t.childName, t.accountName, t.recurring_rule_id ? "고정" : null].filter(Boolean).join(" · ");
 
   return (
     <Link href={`/transactions/${t.id}`} className="flex items-center gap-3 px-1 py-3">

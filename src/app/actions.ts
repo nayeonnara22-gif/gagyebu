@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { AccountKind, TxKind } from "@/lib/types";
+import { daysBetween, firstRunDate, todayKST } from "@/lib/format";
+import type { AccountKind, Frequency, TxKind } from "@/lib/types";
 
 type Result = { error?: string };
 
@@ -184,6 +185,92 @@ export async function saveChild(input: { id?: string; name: string; birth_year: 
 export async function deleteChild(id: string): Promise<Result> {
   const supabase = await createClient();
   const { error } = await supabase.from("children").delete().eq("id", id);
+  if (error) return { error: error.message };
+  refresh();
+  return {};
+}
+
+// ---------------- 고정지출 ----------------
+export type RecurringInput = {
+  id?: string;
+  name: string;
+  kind: TxKind;
+  amount: number;
+  account_id: string;
+  to_account_id: string | null;
+  category_id: string | null;
+  child_id: string | null;
+  tax_deductible: boolean;
+  frequency: Frequency;
+  day_of_month: number | null;
+  start_date: string;
+  end_date: string | null;
+  is_active: boolean;
+};
+
+export async function saveRecurring(input: RecurringInput): Promise<Result> {
+  if (!input.name.trim()) return { error: "이름을 입력해 주세요." };
+  if (!Number.isFinite(input.amount) || input.amount <= 0) return { error: "금액을 입력해 주세요." };
+  if (!input.account_id) return { error: "계좌를 선택해 주세요." };
+  if (input.kind === "transfer" && (!input.to_account_id || input.to_account_id === input.account_id))
+    return { error: "받는 계좌를 확인해 주세요." };
+  const dom = input.frequency === "weekly" ? null : Math.min(31, Math.max(1, input.day_of_month ?? 1));
+  // 과거 날짜는 한꺼번에 채우지 않고, 오늘부터 다가오는 날짜에 시작
+  const today = todayKST();
+  let from = input.start_date > today ? input.start_date : today;
+  if (input.frequency === "weekly" && input.start_date < today) {
+    // 시작일과 같은 요일 중 오늘 이후 첫 날
+    const weeks = Math.ceil(daysBetween(input.start_date, today) / 7);
+    from = new Date(Date.parse(input.start_date) + weeks * 7 * 86_400_000).toISOString().slice(0, 10);
+  }
+  const row = {
+    name: input.name.trim(),
+    kind: input.kind,
+    amount: Math.round(input.amount),
+    account_id: input.account_id,
+    to_account_id: input.kind === "transfer" ? input.to_account_id : null,
+    category_id: input.kind === "transfer" ? null : input.category_id,
+    child_id: input.kind === "expense" ? input.child_id : null,
+    tax_deductible: input.kind === "expense" ? input.tax_deductible : false,
+    frequency: input.frequency,
+    day_of_month: dom,
+    start_date: input.start_date,
+    end_date: input.end_date || null,
+    next_run_on: firstRunDate(from, input.frequency, dom),
+    is_active: input.is_active,
+  };
+  const supabase = await createClient();
+  const { error } = input.id
+    ? await supabase.from("recurring_rules").update(row).eq("id", input.id)
+    : await supabase.from("recurring_rules").insert(row);
+  if (error) return { error: error.message };
+  refresh();
+  return {};
+}
+
+export async function deleteRecurring(id: string): Promise<Result> {
+  const supabase = await createClient();
+  const { error } = await supabase.from("recurring_rules").delete().eq("id", id);
+  if (error) return { error: error.message };
+  refresh();
+  return {};
+}
+
+// ---------------- 예산 ----------------
+/** 그 달부터 적용. key: category_id 또는 "total", 값 0 = 예산 없음 */
+export async function saveBudgets(month: string, values: Record<string, number>): Promise<Result> {
+  if (!/^\d{4}-\d{2}$/.test(month)) return { error: "잘못된 달이에요." };
+  const rows = Object.entries(values).map(([key, amount]) => {
+    if (key !== "total") assertId(key);
+    return {
+      month: `${month}-01`,
+      category_id: key === "total" ? null : key,
+      amount: Math.max(0, Math.round(amount || 0)),
+    };
+  });
+  if (!rows.length) return {};
+  const supabase = await createClient();
+  const { error } = await supabase.from("budgets").upsert(rows, { onConflict: "user_id,month,category_id" });
   if (error) return { error: error.message };
   refresh();
   return {};

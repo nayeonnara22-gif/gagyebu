@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { deleteTransaction, saveTransaction } from "@/app/actions";
 import { ACCOUNT_KIND_LABEL, TX_KIND_LABEL, type Account, type Category, type Child, type Transaction, type TxKind } from "@/lib/types";
 import AmountInput from "./AmountInput";
+import CategoryPicker from "./CategoryPicker";
+import EduFields from "./EduFields";
 import { Field, inputCls } from "./ui";
 
 type Props = {
@@ -16,8 +18,6 @@ type Props = {
   today: string;
 };
 
-const chip = (on: boolean) =>
-  `h-10 shrink-0 rounded-full px-4 text-[15px] ${on ? "bg-ink font-medium text-white" : "border border-line bg-card text-ink"}`;
 
 export default function TransactionForm({ tx, accounts, categories, kids, today }: Props) {
   const router = useRouter();
@@ -37,11 +37,6 @@ export default function TransactionForm({ tx, accounts, categories, kids, today 
 
   const byId = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
   const selected = categoryId ? byId.get(categoryId) : undefined;
-  const selectedTopId = selected ? (selected.parent_id ?? selected.id) : null;
-  const tops = categories.filter((c) => c.kind === kind && !c.parent_id && (!c.is_archived || c.id === selectedTopId));
-  const subs = selectedTopId
-    ? categories.filter((c) => c.parent_id === selectedTopId && (!c.is_archived || c.id === categoryId))
-    : [];
   const isEdu = kind === "expense" && !!selected?.is_education;
 
   function changeKind(k: TxKind) {
@@ -172,57 +167,11 @@ export default function TransactionForm({ tx, accounts, categories, kids, today 
       )}
 
       {kind !== "transfer" && (
-        <div className="flex flex-col gap-2 text-sm text-sub">
-          카테고리
-          <div className="flex flex-wrap gap-2">
-            {tops.map((c) => (
-              <button type="button" key={c.id} onClick={() => setCategoryId(c.id)} className={chip(selectedTopId === c.id)}>
-                {c.name}
-              </button>
-            ))}
-          </div>
-          {subs.length > 0 && (
-            <div className="mt-1 flex flex-wrap gap-2 rounded-2xl bg-bg p-3">
-              {subs.map((c) => (
-                <button
-                  type="button"
-                  key={c.id}
-                  onClick={() => setCategoryId(categoryId === c.id ? selectedTopId : c.id)}
-                  className={`h-9 rounded-full px-3.5 text-sm ${categoryId === c.id ? "bg-accent font-medium text-white" : "bg-card text-ink"}`}
-                >
-                  {c.name}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        <CategoryPicker categories={categories} kind={kind} value={categoryId} onChange={setCategoryId} />
       )}
 
       {isEdu && (
-        <div className="flex flex-col gap-3 rounded-2xl bg-edu-soft p-4">
-          <div className="text-sm font-bold text-edu">교육비 정보</div>
-          {kids.length === 0 ? (
-            <p className="text-sm text-edu">
-              <Link href="/more/children" className="underline">
-                아이를 등록하면
-              </Link>{" "}
-              아이별로 나눠 볼 수 있어요.
-            </p>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {kids.map((k) => (
-                <button type="button" key={k.id} onClick={() => setChildId(childId === k.id ? null : k.id)} className={chip(childId === k.id)}>
-                  {k.name}
-                </button>
-              ))}
-            </div>
-          )}
-          <label className="flex min-h-11 items-center gap-3 text-[15px] text-ink">
-            <input type="checkbox" checked={deductible} onChange={(e) => setDeductible(e.target.checked)} className="size-5 accent-[#9a3412]" />
-            연말정산 교육비 공제 대상
-          </label>
-          <p className="-mt-2 text-xs text-edu">학원비는 보통 취학 전 아이만 공제돼요. 초·중·고는 학교 납입금, 교복, 체험학습비 등이 대상이에요.</p>
-        </div>
+        <EduFields kids={kids} childId={childId} setChildId={setChildId} deductible={deductible} setDeductible={setDeductible} />
       )}
 
       <Field label="메모 (선택)">

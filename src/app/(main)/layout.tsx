@@ -6,6 +6,8 @@ export default async function MainLayout({ children }: { children: React.ReactNo
   const supabase = await createClient();
   const { count } = await supabase.from("categories").select("id", { count: "exact", head: true });
   if (count === 0) await supabase.rpc("seed_default_categories");
+  // 날짜가 된 고정지출을 내역으로 자동 기록 (같은 날 중복 기록은 DB가 막아줌)
+  await supabase.rpc("apply_due_recurring");
 
   return (
     <div className="mx-auto min-h-dvh max-w-md pb-[calc(110px+env(safe-area-inset-bottom))]">

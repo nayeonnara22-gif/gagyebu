@@ -29,11 +29,14 @@ export default function ImportTool({
 
   const learnedMap = useMemo(() => new Map(learned), [learned]);
   const catOptions = useMemo(() => {
-    const byId = new Map(categories.map((c) => [c.id, c]));
+    // 상위 카테고리 순서대로, 그 아래에 하위 카테고리
     const opts = (kind: "income" | "expense") =>
       categories
-        .filter((c) => c.kind === kind)
-        .map((c) => ({ id: c.id, label: c.parent_id ? `${byId.get(c.parent_id)?.name} > ${c.name}` : c.name }));
+        .filter((c) => c.kind === kind && !c.parent_id)
+        .flatMap((top) => [
+          { id: top.id, label: top.name },
+          ...categories.filter((c) => c.parent_id === top.id).map((c) => ({ id: c.id, label: `${top.name} > ${c.name}` })),
+        ]);
     return { income: opts("income"), expense: opts("expense") };
   }, [categories]);
 

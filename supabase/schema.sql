@@ -88,6 +88,8 @@ create table if not exists transactions (
   tax_deductible boolean not null default false,                  -- 연말정산 공제대상
   recurring_rule_id uuid references recurring_rules(id) on delete set null,
   import_batch_id uuid references import_batches(id) on delete cascade,
+  is_adjustment boolean not null default false,   -- 잔액 맞추기 (통계 제외)
+  source_text text,                               -- 가져오기 원본 문구
   created_at timestamptz not null default now(),
   constraint transfer_needs_target check (
     (kind = 'transfer' and to_account_id is not null and to_account_id <> account_id)

@@ -86,6 +86,7 @@ export async function getMonthlySeries(month: string, n: number) {
     .from("transactions")
     .select("occurred_on, kind, amount")
     .in("kind", ["income", "expense"])
+    .eq("is_adjustment", false)
     .gte("occurred_on", `${months[0]}-01`)
     .lt("occurred_on", monthRange(month).next);
   const sums = new Map(months.map((m) => [m, { month: m, income: 0, expense: 0 }]));
@@ -120,6 +121,7 @@ export function monthTotals(txs: Transaction[]) {
   let income = 0;
   let expense = 0;
   for (const t of txs) {
+    if (t.is_adjustment) continue;
     if (t.kind === "income") income += t.amount;
     else if (t.kind === "expense") expense += t.amount;
   }

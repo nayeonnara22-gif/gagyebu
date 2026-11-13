@@ -88,7 +88,12 @@ export default function AccountForm({ account }: { account?: Account }) {
         />
       </Field>
 
-      <Field label={isDebt(kind) ? (kind === "loan" ? "현재 남은 대출 원금" : "지금까지 쓴 미결제 금액") : "현재 잔액"}>
+      <Field
+        label={
+          (account ? "등록할 때 " : "현재 ") +
+          (isDebt(kind) ? (kind === "loan" ? "남은 대출 원금" : "미결제 금액") : "잔액")
+        }
+      >
         <AmountInput value={amount} onChange={setAmount} />
       </Field>
       <p className="-mt-3 text-xs text-mute">

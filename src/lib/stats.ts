@@ -6,7 +6,7 @@ export function byTopCategory(txs: Transaction[], categories: Category[], kind: 
   const cat = categoryLookup(categories);
   const map = new Map<string, { id: string; name: string; total: number; isEdu: boolean }>();
   for (const t of txs) {
-    if (t.kind !== kind) continue;
+    if (t.kind !== kind || t.is_adjustment) continue;
     const c = cat(t.category_id);
     const key = c?.topId ?? "none";
     const cur = map.get(key) ?? { id: key, name: c?.topName ?? "미분류", total: 0, isEdu: !!c?.isEducation };

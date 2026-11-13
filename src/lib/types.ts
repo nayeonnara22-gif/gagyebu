@@ -76,4 +76,6 @@ export type Transaction = {
   child_id: string | null;
   tax_deductible: boolean;
   recurring_rule_id?: string | null;
+  import_batch_id?: string | null;
+  is_adjustment?: boolean;
 };

@@ -12,6 +12,22 @@ export type TxView = Transaction & {
 };
 
 export default function TxRow({ t }: { t: TxView }) {
+  if (t.is_adjustment) {
+    return (
+      <Link href={`/transactions/${t.id}`} className="flex items-center gap-3 px-1 py-3">
+        <div className="flex size-10.5 shrink-0 items-center justify-center rounded-full bg-bg text-[13px] font-bold text-mute">조</div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[15px] font-medium text-sub">잔액 조정</div>
+          <div className="mt-0.5 truncate text-xs text-mute">{t.accountName} · 통계 제외</div>
+        </div>
+        <div className="shrink-0 text-[15px] font-bold text-mute">
+          {t.kind === "income" ? "+" : "-"}
+          {won(t.amount)}
+        </div>
+      </Link>
+    );
+  }
+
   const style =
     t.kind === "income"
       ? { bg: "bg-accent-soft", fg: "text-accent", amt: "text-accent", sign: "+" }

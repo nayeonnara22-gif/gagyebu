@@ -27,7 +27,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
   ]);
   const totals = monthTotals(txs);
   const views = toViews(txs, accounts, categories, kids).filter((t) =>
-    !f ? true : f === "edu" ? t.isEdu && t.kind === "expense" : t.kind === f,
+    !f ? true : f === "edu" ? t.isEdu && t.kind === "expense" : t.kind === f && !t.is_adjustment,
   );
 
   const days: { date: string; net: number; items: typeof views }[] = [];
@@ -35,6 +35,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
     let d = days[days.length - 1];
     if (!d || d.date !== t.occurred_on) days.push((d = { date: t.occurred_on, net: 0, items: [] }));
     d.items.push(t);
+    if (t.is_adjustment) continue;
     if (t.kind === "income") d.net += t.amount;
     if (t.kind === "expense") d.net -= t.amount;
   }

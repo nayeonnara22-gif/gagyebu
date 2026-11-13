@@ -190,6 +190,101 @@ export async function deleteChild(id: string): Promise<Result> {
   return {};
 }
 
+// ---------------- 잔액 맞추기 ----------------
+/** 실제 잔액을 입력하면 차이만큼 '잔액 조정' 내역을 만들어요 (통계 제외) */
+export async function adjustBalance(accountId: string, actual: number, date: string): Promise<Result & { diff?: number }> {
+  assertId(accountId);
+  if (!Number.isFinite(actual)) return { error: "잔액을 입력해 주세요." };
+  const supabase = await createClient();
+  const { data, error: e1 } = await supabase.from("account_balances").select("balance").eq("id", accountId).single();
+  if (e1 || !data) return { error: e1?.message ?? "계좌를 찾을 수 없어요." };
+  const diff = Math.round(actual) - Number(data.balance);
+  if (diff === 0) return { diff: 0 };
+  const { error } = await supabase.from("transactions").insert({
+    occurred_on: date,
+    kind: diff > 0 ? "income" : "expense",
+    amount: Math.abs(diff),
+    account_id: accountId,
+    title: "잔액 조정",
+    is_adjustment: true,
+  });
+  if (error) return { error: error.message };
+  refresh();
+  return { diff };
+}
+
+// ---------------- 가져오기 ----------------
+/** 중복 확인용: 기간 안의 기존 내역 */
+export async function findExisting(minDate: string, maxDate: string) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("transactions")
+    .select("id, occurred_on, account_id, to_account_id, amount, kind, title")
+    .gte("occurred_on", minDate)
+    .lte("occurred_on", maxDate);
+  return (data ?? []).map((t) => ({ ...t, amount: Number(t.amount) }));
+}
+
+export type ImportRow = {
+  date: string;
+  title: string;
+  amount: number;
+  kind: TxKind;
+  account_id: string;
+  to_account_id: string | null;
+  category_id: string | null;
+  memo: string | null;
+  source: string;
+};
+
+export async function importRows(rows: ImportRow[], label: string): Promise<Result & { count?: number }> {
+  if (!rows.length) return { error: "저장할 내역이 없어요." };
+  for (const r of rows) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(r.date)) return { error: `날짜 형식 오류: ${r.date}` };
+    if (!r.account_id) return { error: `'${r.title}'의 계좌를 골라 주세요.` };
+    if (!(r.amount > 0)) return { error: `'${r.title}'의 금액이 없어요.` };
+    if (r.kind === "transfer" && (!r.to_account_id || r.to_account_id === r.account_id))
+      return { error: `'${r.title}'의 받는 계좌를 골라 주세요.` };
+  }
+  const supabase = await createClient();
+  const { data: batch, error: e1 } = await supabase
+    .from("import_batches")
+    .insert({ source: "screenshot", file_name: label.slice(0, 100) || null, row_count: rows.length })
+    .select("id")
+    .single();
+  if (e1 || !batch) return { error: e1?.message ?? "가져오기 기록을 만들지 못했어요." };
+  const { error } = await supabase.from("transactions").insert(
+    rows.map((r) => ({
+      occurred_on: r.date,
+      kind: r.kind,
+      amount: Math.round(r.amount),
+      account_id: r.account_id,
+      to_account_id: r.kind === "transfer" ? r.to_account_id : null,
+      category_id: r.kind === "transfer" ? null : r.category_id || null,
+      title: r.title.trim(),
+      memo: r.memo?.trim() || null,
+      source_text: r.source.slice(0, 300),
+      import_batch_id: batch.id,
+    })),
+  );
+  if (error) {
+    await supabase.from("import_batches").delete().eq("id", batch.id);
+    return { error: error.message };
+  }
+  refresh();
+  return { count: rows.length };
+}
+
+/** 가져온 묶음 되돌리기 (그 묶음으로 들어온 내역 전부 삭제) */
+export async function undoImport(batchId: string): Promise<Result> {
+  assertId(batchId);
+  const supabase = await createClient();
+  const { error } = await supabase.from("import_batches").delete().eq("id", batchId);
+  if (error) return { error: error.message };
+  refresh();
+  return {};
+}
+
 // ---------------- 고정지출 ----------------
 export type RecurringInput = {
   id?: string;

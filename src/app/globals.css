@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+/* 시안 A · 깔끔한 화이트 */
+@theme {
+  --color-bg: #f4f5f7;
+  --color-card: #ffffff;
+  --color-ink: #191f28;
+  --color-sub: #4b5563;
+  --color-mute: #6b7280;
+  --color-line: #e5e7eb;
+  --color-accent: #2563eb;
+  --color-accent-dark: #1d4ed8;
+  --color-accent-soft: #eff6ff;
+  --color-over: #c2410c;
+  --color-edu: #9a3412;
+  --color-edu-soft: #fff7ed;
+  --font-sans: var(--font-noto), "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+}
+
+html,
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+}
+
+body {
+  -webkit-tap-highlight-color: transparent;
+}
+
+input,
+select,
+textarea,
+button {
+  font: inherit;
+}
+
+/* 숫자 입력칸 화살표 숨김 */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}

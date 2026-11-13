@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { monthRange, shiftMonth } from "@/lib/format";
+import { investmentDelta, type Security, type Trade } from "@/lib/invest";
 import type { Account, AccountKind, Budget, Category, Child, RecurringRule, Transaction } from "@/lib/types";
 
 export async function getAccounts(includeArchived = false) {
@@ -11,10 +12,51 @@ export async function getAccounts(includeArchived = false) {
 }
 
 export type Balance = { id: string; name: string; kind: AccountKind; is_archived: boolean; balance: number };
+/** 계좌별 잔액. 증권계좌는 예수금 + 보유 종목 평가금액 */
 export async function getBalances() {
   const supabase = await createClient();
-  const { data } = await supabase.from("account_balances").select("*").order("sort_order");
-  return ((data ?? []) as Balance[]).map((b) => ({ ...b, balance: Number(b.balance) }));
+  const [{ data }, inv] = await Promise.all([
+    supabase.from("account_balances").select("*").order("sort_order"),
+    getInvestments(),
+  ]);
+  const delta = investmentDelta(inv.securities, inv.trades);
+  return ((data ?? []) as Balance[]).map((b) => {
+    const d = delta.get(b.id);
+    return { ...b, balance: Math.round(Number(b.balance) + (d ? d.cash + d.value : 0)) };
+  });
+}
+
+export async function getInvestments(accountId?: string) {
+  const supabase = await createClient();
+  let sq = supabase.from("securities").select("*").order("created_at");
+  if (accountId) sq = sq.eq("account_id", accountId);
+  const [{ data: secs }, { data: trs }] = await Promise.all([
+    sq,
+    supabase.from("trades").select("*").order("traded_on"),
+  ]);
+  const securities = ((secs ?? []) as Security[]).map((s) => ({
+    ...s,
+    current_price: s.current_price === null ? null : Number(s.current_price),
+  }));
+  const ids = new Set(securities.map((s) => s.id));
+  const trades = ((trs ?? []) as Trade[])
+    .filter((t) => ids.has(t.security_id))
+    .map((t) => ({ ...t, quantity: Number(t.quantity), price: Number(t.price), fee: Number(t.fee) }));
+  return { securities, trades };
+}
+
+/** 한 해의 교육비 지출 (교육비 카테고리) */
+export async function getYearExpenses(year: number) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("transactions")
+    .select("*")
+    .eq("kind", "expense")
+    .eq("is_adjustment", false)
+    .gte("occurred_on", `${year}-01-01`)
+    .lt("occurred_on", `${year + 1}-01-01`)
+    .order("occurred_on");
+  return ((data ?? []) as Transaction[]).map((t) => ({ ...t, amount: Number(t.amount) }));
 }
 
 export async function getCategories(includeArchived = false) {

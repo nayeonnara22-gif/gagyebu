@@ -11,11 +11,13 @@ export default function BalanceAdjust({
   balance,
   isDebt,
   today,
+  label = "잔액 맞추기",
 }: {
   accountId: string;
   balance: number;
   isDebt: boolean;
   today: string;
+  label?: string;
 }) {
   const [pending, start] = useTransition();
   // 카드/대출은 '갚을 돈'(양수)으로 입력받고 음수로 저장
@@ -38,14 +40,14 @@ export default function BalanceAdjust({
   return (
     <section className="mx-5 mt-2 mb-4 flex flex-col gap-3 rounded-2xl bg-card p-4">
       <div className="flex items-baseline justify-between">
-        <h2 className="font-bold">잔액 맞추기</h2>
+        <h2 className="font-bold">{label}</h2>
         <span className="text-sm text-sub">
           앱 {isDebt ? "갚을 돈" : "잔액"} {won(shown)}
         </span>
       </div>
       <AmountInput value={actual} onChange={setActual} />
       <p className="text-xs text-mute">
-        실제 {isDebt ? "갚을 금액" : "통장 잔액"}을 넣으면 차이를 &apos;잔액 조정&apos;으로 기록해요. 지출·수입 통계에는 들어가지 않아요.
+        실제 {isDebt ? "갚을 금액" : label.includes("예수금") ? "예수금" : "통장 잔액"}을 넣으면 차이를 &apos;잔액 조정&apos;으로 기록해요. 지출·수입 통계에는 들어가지 않아요.
       </p>
       {msg && <p className={`text-sm ${msg.ok ? "text-accent-dark" : "text-over"}`}>{msg.text}</p>}
       <button

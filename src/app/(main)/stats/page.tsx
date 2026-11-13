@@ -1,3 +1,4 @@
+import Link from "next/link";
 import MonthNav from "@/components/MonthNav";
 import TrendChart from "@/components/TrendChart";
 import { Card, Empty, PageTitle } from "@/components/ui";
@@ -24,6 +25,11 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
     <>
       <PageTitle>통계</PageTitle>
       <MonthNav month={month} base="/stats" />
+      <div className="px-4 pb-2">
+        <Link href="/education" className="flex h-11 items-center justify-between rounded-2xl bg-edu-soft px-4 text-sm font-medium text-edu">
+          교육비 · 연말정산 보기 <span aria-hidden="true">→</span>
+        </Link>
+      </div>
       <div className="mt-1 flex flex-col gap-3 px-4">
         <Card>
           <TrendChart key={month} data={series} current={month} />

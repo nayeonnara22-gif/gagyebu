@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getInvestments } from "@/lib/data";
 import { daysBetween, firstRunDate, todayKST } from "@/lib/format";
+import { investmentDelta } from "@/lib/invest";
 import type { AccountKind, Frequency, TxKind } from "@/lib/types";
 
 type Result = { error?: string };
@@ -198,7 +200,10 @@ export async function adjustBalance(accountId: string, actual: number, date: str
   const supabase = await createClient();
   const { data, error: e1 } = await supabase.from("account_balances").select("balance").eq("id", accountId).single();
   if (e1 || !data) return { error: e1?.message ?? "계좌를 찾을 수 없어요." };
-  const diff = Math.round(actual) - Number(data.balance);
+  // 증권계좌는 매매로 오간 현금까지 반영한 예수금 기준
+  const inv = await getInvestments(accountId);
+  const cashDelta = investmentDelta(inv.securities, inv.trades).get(accountId)?.cash ?? 0;
+  const diff = Math.round(actual) - Math.round(Number(data.balance) + cashDelta);
   if (diff === 0) return { diff: 0 };
   const { error } = await supabase.from("transactions").insert({
     occurred_on: date,
@@ -211,6 +216,136 @@ export async function adjustBalance(accountId: string, actual: number, date: str
   if (error) return { error: error.message };
   refresh();
   return { diff };
+}
+
+// ---------------- 대출 상환 ----------------
+/** 원금은 통장 → 대출 이체, 이자는 '대출이자' 지출로 한 번에 기록 */
+export async function recordLoanPayment(input: {
+  loan_id: string;
+  from_account_id: string;
+  date: string;
+  principal: number;
+  interest: number;
+}): Promise<Result> {
+  assertId(input.loan_id);
+  assertId(input.from_account_id);
+  if (input.loan_id === input.from_account_id) return { error: "출금 계좌를 골라 주세요." };
+  if (!(input.principal > 0) && !(input.interest > 0)) return { error: "원금이나 이자를 입력해 주세요." };
+  const supabase = await createClient();
+  const { data: loan } = await supabase.from("accounts").select("name").eq("id", input.loan_id).single();
+  const { data: cat } = await supabase
+    .from("categories")
+    .select("id")
+    .eq("kind", "expense")
+    .eq("name", "대출이자")
+    .is("parent_id", null)
+    .limit(1)
+    .maybeSingle();
+  const rows = [];
+  if (input.principal > 0)
+    rows.push({
+      occurred_on: input.date,
+      kind: "transfer",
+      amount: Math.round(input.principal),
+      account_id: input.from_account_id,
+      to_account_id: input.loan_id,
+      title: `${loan?.name ?? "대출"} 원금 상환`,
+    });
+  if (input.interest > 0)
+    rows.push({
+      occurred_on: input.date,
+      kind: "expense",
+      amount: Math.round(input.interest),
+      account_id: input.from_account_id,
+      category_id: cat?.id ?? null,
+      title: `${loan?.name ?? "대출"} 이자`,
+    });
+  const { error } = await supabase.from("transactions").insert(rows);
+  if (error) return { error: error.message };
+  refresh();
+  return {};
+}
+
+// ---------------- 투자 ----------------
+export async function saveTrade(input: {
+  account_id: string;
+  security_id: string | null;
+  security_name: string;
+  side: "buy" | "sell";
+  quantity: number;
+  price: number;
+  fee: number;
+  date: string;
+}): Promise<Result> {
+  assertId(input.account_id);
+  if (!(input.quantity > 0)) return { error: "수량을 입력해 주세요." };
+  if (!(input.price >= 0)) return { error: "단가를 입력해 주세요." };
+  const supabase = await createClient();
+  let securityId = input.security_id;
+  if (securityId) assertId(securityId);
+  if (!securityId) {
+    const name = input.security_name.trim();
+    if (!name) return { error: "종목 이름을 입력해 주세요." };
+    const { data: existing } = await supabase
+      .from("securities")
+      .select("id")
+      .eq("account_id", input.account_id)
+      .eq("name", name)
+      .maybeSingle();
+    if (existing) securityId = existing.id;
+    else {
+      const { data, error } = await supabase
+        .from("securities")
+        .insert({ account_id: input.account_id, name, current_price: input.price, price_updated_on: input.date })
+        .select("id")
+        .single();
+      if (error || !data) return { error: error?.message ?? "종목을 만들지 못했어요." };
+      securityId = data.id;
+    }
+  }
+  const { error } = await supabase.from("trades").insert({
+    security_id: securityId,
+    traded_on: input.date,
+    side: input.side,
+    quantity: input.quantity,
+    price: input.price,
+    fee: Math.round(input.fee || 0),
+  });
+  if (error) return { error: error.message };
+  refresh();
+  return {};
+}
+
+export async function deleteTrade(id: string): Promise<Result> {
+  assertId(id);
+  const supabase = await createClient();
+  const { error } = await supabase.from("trades").delete().eq("id", id);
+  if (error) return { error: error.message };
+  refresh();
+  return {};
+}
+
+export async function updatePrice(securityId: string, price: number, date: string): Promise<Result> {
+  assertId(securityId);
+  if (!(price >= 0)) return { error: "시세를 입력해 주세요." };
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("securities")
+    .update({ current_price: price, price_updated_on: date })
+    .eq("id", securityId);
+  if (error) return { error: error.message };
+  refresh();
+  return {};
+}
+
+/** 종목 삭제 (매매 기록도 함께 삭제) */
+export async function deleteSecurity(securityId: string): Promise<Result> {
+  assertId(securityId);
+  const supabase = await createClient();
+  const { error } = await supabase.from("securities").delete().eq("id", securityId);
+  if (error) return { error: error.message };
+  refresh();
+  return {};
 }
 
 // ---------------- 가져오기 ----------------

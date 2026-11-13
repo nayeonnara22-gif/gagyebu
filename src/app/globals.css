@@ -14,6 +14,9 @@
   --color-over: #c2410c;
   --color-edu: #9a3412;
   --color-edu-soft: #fff7ed;
+  /* 투자 손익: 한국 관례대로 오르면 빨강, 내리면 파랑 */
+  --color-up: #d92d20;
+  --color-down: #1d4ed8;
   --font-sans: var(--font-noto), "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
 }
 
